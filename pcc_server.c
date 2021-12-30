@@ -27,7 +27,6 @@ int main(int argc, char *argv[])
     socklen_t addrsize = sizeof(struct sockaddr_in );
 
     char data_buff[1024];
-    time_t ticks;
 
     listenfd = socket( AF_INET, SOCK_STREAM, 0 );
     memset( &serv_addr, 0, addrsize );
@@ -75,11 +74,6 @@ int main(int argc, char *argv[])
                 ntohs(     peer_addr.sin_port ),
                 inet_ntoa( my_addr.sin_addr   ),
                 ntohs(     my_addr.sin_port   ) );
-
-        // write time
-        ticks = time(NULL);
-        snprintf( data_buff, sizeof(data_buff),
-                  "%.24s\r\n", ctime(&ticks));
 
         totalsent = 0;
         int notwritten = strlen(data_buff);
