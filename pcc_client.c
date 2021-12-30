@@ -1,5 +1,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -10,10 +11,11 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-int sendBuff(char* data_buff, int fd)
+void sendBuff(char* data_buff, int fd)
 {
-    total_sent = 0;
+    int total_sent = 0;
     int not_written = strlen(data_buff);
+    int nsent;
 
     // keep looping until nothing left to write
     while( not_written > 0 )
@@ -26,7 +28,7 @@ int sendBuff(char* data_buff, int fd)
                       not_written);
 
         // check if error occured
-        assert( nsent >= 0);
+        if(nsent < 0){ printf("write to fd failed\n"); exit(-1); }
 
         total_sent  += nsent;
         not_written -= nsent;
@@ -60,17 +62,15 @@ int main(int argc, char *argv[])
     int  sockfd     = -1;
     int filefd      = -1;
     int  bytes_read =  0;
-    int  bytes_written =  0;
     char buff[1024];
     int file_size;
 
     char * server_ip = argv[1];
-    unsigned short server_port = strtol(argv[2]);
+    unsigned short server_port = atoi(argv[2]);
     char * file_path = argv[3];
 
     socklen_t addrsize = sizeof(struct sockaddr_in );
 
-    memset(recv_buff, 0,sizeof(recv_buff));
     if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         { printf("\n Error : Could not create socket \n"); exit(-1); }
 
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port); // Note: htons for endiannes
-    serv_addr.sin_addr.s_addr = inet_addr(serv_addr); // hardcoded...
+    serv_addr.sin_addr.s_addr = inet_addr(server_ip);
 
     printf("Client: connecting...\n");
     if(connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
@@ -99,7 +99,8 @@ int main(int argc, char *argv[])
 
     //write size of file to server
     if((file_size = GetfileSize(file_path)) < 0) { printf("couldn't read file size!\n"); exit(-1); }
-    sendBuff((char *)&htonl(file_size), sockfd);
+    file_size = htonl(file_size);
+    sendBuff((char *)&file_size, sockfd);
 
     // write data from file to server
     while((bytes_read = read(filefd, buff, sizeof(buff) - 1)) <= 0)
