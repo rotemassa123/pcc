@@ -10,12 +10,31 @@
 #include <time.h>
 #include <assert.h>
 
+
+int pcc_total[126];
+
+void handleConnection(int fd){
+    int msg_len = ReadMsgLen(fd);
+
+    char * buffer;
+    readToBuffer(fd, buffer);
+
+    int bytes_read;
+    char buff[sizeof(unsigned int)];
+    while((bytes_read = read(fd, buff, sizeof(buff) - 1)) > 0){
+        buff[bytes_read] = '\0';
+    }
+
+    printf("# of printable characters: %u\n", strtol(str, &ptr, 10));
+}
+
 // MINIMAL ERROR HANDLING FOR EASE OF READING
 
 int main(int argc, char *argv[])
 {
-    int totalsent = -1;
-    int nsent     = -1;
+    if(argc != 1){ printf("KAIZO KUNARA (wrong arguMeNTS)\n"); exit(-1); }
+    memset(&pcc_total, 0, sizeof(pcc_total));
+
     int len       = -1;
     int n         =  0;
     int listenfd  = -1;
@@ -36,15 +55,13 @@ int main(int argc, char *argv[])
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(10000);
 
-    if( 0 != bind( listenfd,
-                   (struct sockaddr*) &serv_addr,
-                   addrsize ) )
+    if(0 != bind(listenfd, (struct sockaddr*) &serv_addr, addrsize))
     {
         printf("\n Error : Bind Failed. %s \n", strerror(errno));
         return 1;
     }
 
-    if( 0 != listen( listenfd, 10 ) )
+    if(0 != listen(listenfd, 10))
     {
         printf("\n Error : Listen Failed. %s \n", strerror(errno));
         return 1;
@@ -53,13 +70,9 @@ int main(int argc, char *argv[])
     while( 1 )
     {
         // Accept a connection.
-        // Can use NULL in 2nd and 3rd arguments
-        // but we want to print the client socket details
-        connfd = accept( listenfd,
-                         (struct sockaddr*) &peer_addr,
-                         &addrsize);
+        connfd = accept(listenfd, (struct sockaddr*) &peer_addr, &addrsize);
 
-        if( connfd < 0 )
+        if(connfd < 0)
         {
             printf("\n Error : Accept Failed. %s \n", strerror(errno));
             return 1;
@@ -75,26 +88,7 @@ int main(int argc, char *argv[])
                 inet_ntoa( my_addr.sin_addr   ),
                 ntohs(     my_addr.sin_port   ) );
 
-        totalsent = 0;
-        int notwritten = strlen(data_buff);
-
-        // keep looping until nothing left to write
-        while( notwritten > 0 )
-        {
-            // notwritten = how much we have left to write
-            // totalsent  = how much we've written so far
-            // nsent = how much we've written in last write() call */
-            nsent = write(connfd,
-                          data_buff + totalsent,
-                          notwritten);
-            // check if error occured (client closed connection?)
-            assert( nsent >= 0);
-            printf("Server: wrote %d bytes\n", nsent);
-
-            totalsent  += nsent;
-            notwritten -= nsent;
-        }
-
+        handleConnection(connfd);
         // close socket
         close(connfd);
     }
