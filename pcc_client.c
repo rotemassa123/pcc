@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
     char * count_of_printable_chars_str = (char *)&num_read_from_server;
     int read_this_time;
     int read_so_far = 0;
-    while(4 > read_so_far){
-        read_this_time = read(sockfd, count_of_printable_chars_str + read_so_far, 4 - read_so_far);
+    while(sizeof(uint32_t ) > read_so_far){
+        read_this_time = read(sockfd, count_of_printable_chars_str + read_so_far, sizeof(uint32_t ) - read_so_far);
         read_so_far += read_this_time;
     }
 

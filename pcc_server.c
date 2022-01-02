@@ -13,47 +13,87 @@
 
 int pcc_total[126];
 
-void handleConnection(int fd){
-    int msg_len = ReadMsgLen(fd);
-
-    char * buffer;
-    readToBuffer(fd, buffer);
-
-    int bytes_read;
-    char buff[sizeof(unsigned int)];
-    while((bytes_read = read(fd, buff, sizeof(buff) - 1)) > 0){
-        buff[bytes_read] = '\0';
+int updatePcc(char * data_buff, int file_size){
+    int count = 0;
+    int b;
+    for(int i = 0; i < file_size; i++){
+        b = (int) data_buff[i];
+        if(b >= 32 && b <= 126){
+            count++;
+            pcc_total[b]++;
+        }
     }
 
-    printf("# of printable characters: %u\n", strtol(str, &ptr, 10));
+    return count;
+}
+
+void handleConnection(int fd){
+    //read file_size from client
+    uint32_t num_read_from_client;
+    char * file_size_str = (char *)&num_read_from_client;
+    int read_this_time;
+    int read_so_far = 0;
+
+    while(sizeof(uint32_t) > read_so_far){
+        read_this_time = read(fd, file_size_str + read_so_far, sizeof(uint32_t) - read_so_far);
+        read_so_far += read_this_time;
+    }
+    int file_size = ntohl(num_read_from_client);
+
+    //read file data from client
+    char * data_buff = malloc(file_size);
+    read_so_far = 0;
+    while(file_size > read_so_far){
+        read_this_time = read(fd, data_buff + read_so_far, file_size - read_so_far);
+        read_so_far += read_this_time;
+    }
+
+    int count_of_printable_chars;
+
+    //if(!has_recieved_SIGINT)
+    count_of_printable_chars = htonl(updatePcc(data_buff, file_size));
+    char * count_of_printable_chars_buff = (char *)&count_of_printable_chars;
+    int sent = 0;
+    int sent_this_iteration;
+    while( sizeof(uint32_t) > sent )
+    {
+        sent_this_iteration = write(fd, count_of_printable_chars_buff + sent, sizeof(uint32_t) - sent);
+        if(sent_this_iteration < 0){ perror("write of file size to socket failed\n"); exit(-1); }
+        sent  += sent_this_iteration;
+    }
 }
 
 // MINIMAL ERROR HANDLING FOR EASE OF READING
 
 int main(int argc, char *argv[])
 {
-    if(argc != 1){ printf("KAIZO KUNARA (wrong arguMeNTS)\n"); exit(-1); }
+    if(argc != 2){ printf("KAIZO KUNARA (wrong arguMeNTS)\n"); exit(-1); }
     memset(&pcc_total, 0, sizeof(pcc_total));
 
-    int len       = -1;
-    int n         =  0;
+    int rt = 1;
     int listenfd  = -1;
     int connfd    = -1;
+    short port = atoi(argv[1]);
 
     struct sockaddr_in serv_addr;
-    struct sockaddr_in my_addr;
     struct sockaddr_in peer_addr;
     socklen_t addrsize = sizeof(struct sockaddr_in );
 
-    char data_buff[1024];
+    //char data_buff[1024];
 
     listenfd = socket( AF_INET, SOCK_STREAM, 0 );
     memset( &serv_addr, 0, addrsize );
 
     serv_addr.sin_family = AF_INET;
-    // INADDR_ANY = any local machine address
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(10000);
+    serv_addr.sin_port = htons(port);
+
+
+    if(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &rt, sizeof(int)) < 0){
+        fprintf(stderr, "setsockopt Error: %s\n", strerror(errno));
+        exit(1);
+    }
+
 
     if(0 != bind(listenfd, (struct sockaddr*) &serv_addr, addrsize))
     {
@@ -77,16 +117,6 @@ int main(int argc, char *argv[])
             printf("\n Error : Accept Failed. %s \n", strerror(errno));
             return 1;
         }
-
-        getsockname(connfd, (struct sockaddr*) &my_addr,   &addrsize);
-        getpeername(connfd, (struct sockaddr*) &peer_addr, &addrsize);
-        printf( "Server: Client connected.\n"
-                "\t\tClient IP: %s Client Port: %d\n"
-                "\t\tServer IP: %s Server Port: %d\n",
-                inet_ntoa( peer_addr.sin_addr ),
-                ntohs(     peer_addr.sin_port ),
-                inet_ntoa( my_addr.sin_addr   ),
-                ntohs(     my_addr.sin_port   ) );
 
         handleConnection(connfd);
         // close socket
