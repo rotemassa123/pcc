@@ -124,6 +124,7 @@ int main(int argc, char *argv[])
         }
         // convert N to host form and allocate memory for data
         N = ntohl(net_int);
+        printf("Server: file_size recieved from client:%u\n", N);
         rcv_buff = malloc(N);
         // read file data from client (N bytes)
         total_bytes = 0;
@@ -153,6 +154,7 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        printf("Server: text recieved from client:%s\n", rcv_buff);
         // calculate C and count readable chars in pcc_buff
         C = 0;
         for(int i = 0; i < 95; i++){
@@ -166,6 +168,7 @@ int main(int argc, char *argv[])
         }
         free(rcv_buff);
         // send C to client (4 bytes)
+        printf("count of printable chars:%d\n", C);
         net_int = htonl(C);
         total_bytes = 0;
         bytes = 1;

@@ -11,32 +11,6 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-void sendBuff(char* data_buff, int fd)
-{
-    int total_sent = 0;
-    int len = strlen(data_buff);
-    int sent_this_iteration;
-
-    // keep looping until nothing left to write
-    while( len > total_sent )
-    {
-        sent_this_iteration = write(fd, data_buff + total_sent, len - total_sent);
-
-        if(sent_this_iteration < 0){ printf("write to fd failed\n"); exit(-1); }
-        total_sent  += sent_this_iteration;
-    }
-}
-
-char* readFromFd(int fd, int size_to_read){
-    int read_so_far = 0;
-    char * buff = malloc(size_to_read);
-    while(size_to_read > read_so_far){
-        bytes_read = read(fd, buff + read_so_far, sizeof(buff) - 1);
-    }
-
-    return buff;
-}
-
 int GetfileSize(char *filename) {
     struct stat st;
     if (stat(filename, &st) == 0)
@@ -44,72 +18,75 @@ int GetfileSize(char *filename) {
     return -1;
 }
 
-void printConnectionDetails(sockaddr_in my_addr, sockaddr_in peer_addr){
-    // print socket details
-    getsockname(sockfd, (struct sockaddr*) &my_addr,   &addrsize);
-    getpeername(sockfd, (struct sockaddr*) &peer_addr, &addrsize);
-    printf("Client: Connected. \n"
-           "\t\tSource IP: %s Source Port: %d\n"
-           "\t\tTarget IP: %s Target Port: %d\n",
-           inet_ntoa((my_addr.sin_addr)),    ntohs(my_addr.sin_port),
-           inet_ntoa((peer_addr.sin_addr)),  ntohs(peer_addr.sin_port));
-}
-
 int main(int argc, char *argv[])
 {
-    if(argc != 3){ printf("MUGA BUGA WRONG ARGUEMENTS"); exit(-1); }
+    if(argc != 4){ printf("MUGA BUGA WRONG ARGUEMENTS\n"); exit(-1); }
 
-    struct sockaddr_in serv_addr; // where we Want to get to
-    struct sockaddr_in my_addr;   // where we actually connected through
-    struct sockaddr_in peer_addr; // where we actually connected to
+    struct sockaddr_in serv_addr;
 
     int  sockfd     = -1;
     FILE * filefd;
-    int  bytes_read =  0;
-    char buff[1024];
-    int file_size;
-    errno_t err;
+    uint32_t file_size, file_size_to_send, num_read_from_server;
 
     char * server_ip = argv[1];
     unsigned short server_port = atoi(argv[2]);
     char * file_path = argv[3];
 
-    err = fopen_s(&filefd, file_path, "r");
-
-    socklen_t addrsize = sizeof(struct sockaddr_in );
+    filefd = fopen(file_path, "r");
 
     if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        { printf("\n Error : Could not create socket \n"); exit(-1); }
-
-    printf("Client: socket created %s:%d\n", inet_ntoa((my_addr.sin_addr)), ntohs(my_addr.sin_port));
+        { perror("Error : Could not create socket \n"); exit(1); }
 
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port); // Note: htons for endiannes
     serv_addr.sin_addr.s_addr = inet_addr(server_ip);
 
-    printf("Client: connecting...\n");
     if(connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
-    {
-        printf("\n Error : Connect Failed. %d \n", errno);
-        exit(-1);
-    }
-
-    printConnectionDetails(my_addr, peer_addr);
+        { perror("\n Error : Connect Failed. %d \n"); exit(1); }
 
     //write size of file to server
-    if((file_size = GetfileSize(file_path)) < 0) { printf("couldn't read file size!\n"); exit(-1); }
-    file_size = htonl(file_size);
-    sendBuff((char *)&file_size, sockfd);
+    if((file_size = GetfileSize(file_path) - 1) < 0) { perror("couldn't get file size!\n"); exit(1); }
 
-    // write data from file to server
-    while((bytes_read = read(filefd, buff, sizeof(buff) - 1)) > 0)
-    {
-        buff[bytes_read] = '\0';
-        sendBuff(buff, sockfd);
+    char * buff = malloc(file_size);
+    if (fread(buff, 1, file_size, filefd) != file_size){
+        fprintf(stderr, "Error reading from file: %s\n", strerror(errno));
+        exit(1);
     }
 
-    readFromFdAndPrintToScreen(sockfd);
+    file_size_to_send = htonl(file_size);
+    char * file_size_buff = (char *)&file_size_to_send;
+
+    //send file_size to server
+    int sent = 0;
+    int sent_this_iteration;
+    while( sizeof(uint32_t) > sent )
+    {
+        sent_this_iteration = write(sockfd, file_size_buff + sent, sizeof(uint32_t) - sent);
+        if(sent_this_iteration < 0){ perror("write of file size to socket failed\n"); exit(-1); }
+        sent  += sent_this_iteration;
+    }
+
+    // write data from file to server
+    sent = 0;
+    while( file_size > sent )
+    {
+        sent_this_iteration = write(sockfd, buff + sent, file_size - sent);
+        if(sent_this_iteration < 0){ perror("write file data to socket failed\n"); exit(-1); }
+        sent  += sent_this_iteration;
+    }
+
+    //read count of printable chars from server
+    char * count_of_printable_chars_str = (char *)&num_read_from_server;
+    int read_this_time;
+    int read_so_far = 0;
+    while(4 > read_so_far){
+        read_this_time = read(sockfd, count_of_printable_chars_str + read_so_far, 4 - read_so_far);
+        read_so_far += read_this_time;
+    }
+
+    num_read_from_server = ntohl(num_read_from_server);
+    printf("# of printable characters: %u\n", num_read_from_server);
 
     close(sockfd);
     exit(0);
