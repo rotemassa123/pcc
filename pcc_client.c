@@ -20,7 +20,7 @@ int GetfileSize(char *filename) {
 
 int main(int argc, char *argv[])
 {
-    if(argc != 4){ printf("MUGA BUGA WRONG ARGUEMENTS\n"); exit(-1); }
+    if(argc != 4){ printf("wrong number of arguements!\n"); exit(1); }
 
     struct sockaddr_in serv_addr;
 
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     filefd = fopen(file_path, "r");
 
     if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        { perror("Error : Could not create socket \n"); exit(1); }
+        { perror("Could not create socket\n"); exit(1); }
 
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
@@ -43,14 +43,14 @@ int main(int argc, char *argv[])
     serv_addr.sin_addr.s_addr = inet_addr(server_ip);
 
     if(connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
-        { perror("\n Error : Connect Failed. %d \n"); exit(1); }
+        { perror("Error : Connect Failed. %d \n"); exit(1); }
 
     //write size of file to server
-    if((file_size = GetfileSize(file_path) - 1) < 0) { perror("couldn't get file size!\n"); exit(1); }
+    if((file_size = GetfileSize(file_path)) < 0) { perror("couldn't get file size!\n"); exit(1); }
 
     char * buff = malloc(file_size);
     if (fread(buff, 1, file_size, filefd) != file_size){
-        fprintf(stderr, "Error reading from file: %s\n", strerror(errno));
+        perror("Error reading from file!\n");
         exit(1);
     }
 
@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     while( sizeof(uint32_t) > sent )
     {
         sent_this_iteration = write(sockfd, file_size_buff + sent, sizeof(uint32_t) - sent);
-        if(sent_this_iteration < 0){ perror("write of file size to socket failed\n"); exit(-1); }
+        if(sent_this_iteration < 0){ perror("write of file size to socket failed\n"); exit(1); }
         sent  += sent_this_iteration;
     }
 
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     while( file_size > sent )
     {
         sent_this_iteration = write(sockfd, buff + sent, file_size - sent);
-        if(sent_this_iteration < 0){ perror("write file data to socket failed\n"); exit(-1); }
+        if(sent_this_iteration < 0){ perror("write file data to socket failed\n"); exit(1); }
         sent  += sent_this_iteration;
     }
 

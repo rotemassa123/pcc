@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+
     // initiate SIGINT handler
     struct sigaction sigint;
 	sigint.sa_handler = &sigint_handler;
@@ -56,6 +57,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Signal handle registration failed. Error: %s\n", strerror(errno));
 		exit(1);
 	}
+
 
     // create socket and set address to be reuseable
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
